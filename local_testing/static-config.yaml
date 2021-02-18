@@ -1,0 +1,20 @@
+pilot:
+  token: b40f31a7-1705-4d24-8d62-7dfcca478ebb
+log:
+  level: INFO
+api:
+  insecure: true
+providers:
+  docker:
+    exposedbydefault: false
+  file:
+    directory: /config/dyns
+    watch: true
+entrypoints:
+  web:
+    address: ":80"
+accesslog: {}
+experimental:
+  devPlugin:
+    goPath: /plugins/go
+    moduleName: github.com/finalcad/TraefikRegionalPlugin

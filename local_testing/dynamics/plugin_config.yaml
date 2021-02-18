@@ -1,0 +1,36 @@
+http:
+  routers:
+    my-router:
+      rule: host(`whoami.localhost`)
+      service: service-foo
+      entryPoints:
+        - web
+      middlewares:
+        - TraefikRegionalPlugin
+    my-eu-router:
+      rule: host(`whoami.eu.localhost`)
+      service: service-foo
+      entryPoints:
+        - web
+
+  services:
+    service-foo:
+      loadBalancer:
+        servers:
+          - url: http://whoami:80
+
+  middlewares:
+    TraefikRegionalPlugin:
+      plugin:
+        dev:
+          GlobalHostUrls:
+            - "whoami.localhost"
+          MatchPaths:
+            - regex: ^\/project\/(([0-9A-Fa-f]{8}[-]){2,}([0-9A-Fa-f]{4}[-]){3}[0-9A-Fa-f]{12})$
+              index: 0
+          DestinationHosts:
+            - host: "whoami.eu.localhost"
+              value: 1 # Europe
+            - host: "whoami.ap.localhost"
+              value: 2 # AsiaPacific
+          IsLittleEndian: true
