@@ -1,0 +1,19 @@
+displayName: Regional Router for Finalcad App
+type: middleware
+
+import: github.com/finalcad/TraefikRegionalPlugin
+
+summary: '[Regional Router] Regional Router for Finalcad App'
+
+testData:
+  GlobalHostUrls:
+    - "whoami.localhost"
+  MatchPaths:
+    - regex: ^\/project\/(([0-9A-Fa-f]{8}[-]){2,}([0-9A-Fa-f]{4}[-]){3}[0-9A-Fa-f]{12})$
+      index: 0
+  DestinationHosts:
+    - host: "whoami.ja.localhost"
+      value: 1
+    - host: "whoami.na.localhost"
+      value: 2
+  IsLittleEndian: true
