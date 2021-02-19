@@ -1,5 +1,9 @@
 # Traefik Regional plugin
 
+This plugin is to redirect request to the appropriate dns based on custom uuid reading.
+
+## Traefik plugin
+
 [Traefik](https://traefik.io) plugins are developed using the [Go language](https://golang.org).
 
 A [Traefik](https://traefik.io) middleware plugin is just a [Go package](https://golang.org/ref/spec#Packages) that provides an `http.Handler` to perform specific processing of requests and responses.
@@ -31,7 +35,7 @@ Vendored packages should be included in the plugin's GitHub repository. ([Go mod
 http:
   routers:
     my-router:
-      rule: host(`demo.localhost`)
+      rule: host(`whoami.localhost`)
       service: service-foo
       entryPoints:
         - web
@@ -54,9 +58,26 @@ http:
             - regex: ^\/project\/(([0-9A-Fa-f]{8}[-]){2,}([0-9A-Fa-f]{4}[-]){3}[0-9A-Fa-f]{12})$
               index: 0
           DestinationHosts: # Destination for redirection based on value extract from UUID
-            - host: "whoami.eu.localhost"
-              value: 1 # Europe
-            - host: "whoami.ap.localhost"
-              value: 2 # AsiaPacific
+            - host: "whoami.ja.localhost"
+              value: 1 
+            - host: "whoami.na.localhost"
+              value: 2 
           IsLittleEndian: true # Endianness of the server
 ```
+
+## Unit testing
+
+To run the unit test:
+`make test`
+
+## Local testing
+
+To be tested in local, use the docker-compose file in the folder `local-testing`. This docker-compose work on linux and need to add this three lines in your `/etc/hosts`
+
+```
+127.0.0.1 whoami.localhost
+127.0.0.1 whoami.ja.localhost
+127.0.0.1 whoami.na.localhost
+```
+
+After that you can run `docker-compose up` and make request on `curl whoami.localhost/...`

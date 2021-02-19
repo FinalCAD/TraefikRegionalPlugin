@@ -24,7 +24,7 @@ type Config struct {
 	MatchPaths 				[]MatchPathRegexConfig `json:"match_urls,omitempty"`
 	DestinationHosts 		[]DestinationHostConfig `json:"destination_hosts,omitempty"`
 	IsLittleEndian			bool `json:"little_endian,omitempty"`
-	Debug					bool
+	DefaultScheme			string `json:"default_schema,omitempty"`
 }
 
 
@@ -36,7 +36,7 @@ func CreateConfig() *Config {
 		MatchPaths: make([]MatchPathRegexConfig, 0),
 		DestinationHosts: make([]DestinationHostConfig, 0),
 		IsLittleEndian: true,
-		Debug: false,
+		DefaultScheme: "https",
 	}
 }
 
@@ -56,11 +56,12 @@ type RegionalRouter struct {
 	globalHostUrls 		[]string
 	matchPaths 			[]MatchPathRegex
 	destinationHosts 	[]DestinationHost
+	defaultScheme		string
 	isLittleEndian		bool
 	name         		string
 }
 
-func New(ctx context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
+func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	var matchPathRegexp []MatchPathRegex
 
 	fmt.Println("New: Load configuration")
@@ -99,6 +100,7 @@ func New(ctx context.Context, next http.Handler, config *Config, name string) (h
 		matchPaths: matchPathRegexp,
 		destinationHosts: destinationHosts,
 		isLittleEndian: config.IsLittleEndian,
+		defaultScheme: config.DefaultScheme,
 		next:     next,
 		name:     name,
 	}, nil
@@ -137,7 +139,7 @@ func (a *RegionalRouter) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				if len(subMatch) >= matchPath.index + 1 {
 					rUuid, err := regional_uuid.Regional.Read(subMatch[matchPath.index+1], a.isLittleEndian)
 					if err != nil {
-
+						break
 					}
 					regionHost, err := findRegionHost(rUuid.Region, a.destinationHosts, req.Host)
 					if err == nil && regionHost != req.Host {
@@ -145,7 +147,7 @@ func (a *RegionalRouter) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 						if req.URL.Scheme != "" {
 							newLocation =  req.URL.Scheme + "://" + regionHost + req.URL.Path
 						} else {
-							newLocation = "https" + "://" + regionHost + req.URL.Path
+							newLocation = a.defaultScheme + "://" + regionHost + req.URL.Path
 						}
 
 						fmt.Printf("New location: %s\n", newLocation)

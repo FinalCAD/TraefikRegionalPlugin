@@ -7,8 +7,13 @@ http:
         - web
       middlewares:
         - TraefikRegionalPlugin
-    my-eu-router:
-      rule: host(`whoami.eu.localhost`)
+    my-ja-router:
+      rule: host(`whoami.ja.localhost`)
+      service: service-foo
+      entryPoints:
+        - web
+    my-na-router:
+      rule: host(`whoami.na.localhost`)
       service: service-foo
       entryPoints:
         - web
@@ -29,8 +34,9 @@ http:
             - regex: ^\/project\/(([0-9A-Fa-f]{8}[-]){2,}([0-9A-Fa-f]{4}[-]){3}[0-9A-Fa-f]{12})$
               index: 0
           DestinationHosts:
-            - host: "whoami.eu.localhost"
-              value: 1 # Europe
-            - host: "whoami.ap.localhost"
-              value: 2 # AsiaPacific
+            - host: "whoami.ja.localhost"
+              value: 1
+            - host: "whoami.na.localhost"
+              value: 2
           IsLittleEndian: true
+          DefaultScheme: http
