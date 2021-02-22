@@ -1,5 +1,5 @@
 pilot:
-  token: b40f31a7-1705-4d24-8d62-7dfcca478ebb
+  token: token #####
 log:
   level: INFO
 api:
