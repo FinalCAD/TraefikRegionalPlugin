@@ -35,6 +35,7 @@ type Config struct {
 	DestinationHosts []DestinationHostConfig `json:"destination_hosts,omitempty"`
 	IsLittleEndian   bool                    `json:"little_endian,omitempty"`
 	DefaultScheme    string                  `json:"default_schema,omitempty"`
+	Log              string                  `json:"log,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -45,6 +46,7 @@ func CreateConfig() *Config {
 		DestinationHosts: make([]DestinationHostConfig, 0),
 		IsLittleEndian:   true,
 		DefaultScheme:    "https",
+		Log:              Information,
 	}
 }
 
@@ -74,16 +76,20 @@ type RegionalRouter struct {
 func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
 	var matchPathRegexp []MatchPathRegex
 
-	fmt.Println("New: Load configuration")
+	Log.SetLevel(config.Log)
 
-	fmt.Printf("GlobalHosts (%d) from config\n", len(config.GlobalHostUrls))
+	Log.LogInformation("Load configuration")
+
+	Log.LogDebug(fmt.Sprintf("%d GlobalHosts found", len(config.GlobalHostUrls)))
 	for i := 0; i < len(config.GlobalHostUrls); i++ {
-		fmt.Printf("GlobalHost: %s\n", config.GlobalHostUrls[i])
+		Log.LogDebug(fmt.Sprintf("\tGlobalHost: %s", config.GlobalHostUrls[i]))
 	}
 
+	Log.LogDebug(fmt.Sprintf("%d MatchPaths found", len(config.MatchPaths)))
 	for i := 0; i < len(config.MatchPaths); i++ {
 		regex, err := regexp.Compile(config.MatchPaths[i].Regex)
 		if err != nil {
+			Log.LogError(fmt.Sprintf("Invalid regex `%s`", config.MatchPaths[i].Regex))
 			return nil, errors.New("invalid regexp `" + config.MatchPaths[i].Regex + "`")
 		}
 		matchPathRegex := MatchPathRegex{
@@ -94,20 +100,20 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 			matchType:   config.MatchPaths[i].Type,
 		}
 		if config.MatchPaths[i].Type == MatchPathTypeJwt {
-			fmt.Printf("MatchPath JWT: %s %d\n", config.MatchPaths[i].Regex, config.MatchPaths[i].Index)
+			Log.LogDebug(fmt.Sprintf("\tMatchPath JWT: Regex=%s", config.MatchPaths[i].Regex))
 		} else if config.MatchPaths[i].Type == MatchPathTypePath {
-			fmt.Printf("MatchPath UUID: %s %d\n", config.MatchPaths[i].Regex, config.MatchPaths[i].Index)
+			Log.LogDebug(fmt.Sprintf("\tMatchPath PATH: Regex=%s Index=%d", config.MatchPaths[i].Regex, config.MatchPaths[i].Index))
 		} else {
-			fmt.Printf("Unknown type %s. The regex %s is ignored", config.MatchPaths[i].Type, config.MatchPaths[i].Regex)
+			Log.LogWarning(fmt.Sprintf("\tUnknown type %s. The regex %s is ignored", config.MatchPaths[i].Type, config.MatchPaths[i].Regex))
 			continue
 		}
 		matchPathRegexp = append(matchPathRegexp, matchPathRegex)
 	}
 
-	fmt.Printf("Destination hosts (%d)\n", len(config.DestinationHosts))
+	Log.LogDebug(fmt.Sprintf("%d Destination hosts found", len(config.DestinationHosts)))
 	var destinationHosts []DestinationHost
 	for i := 0; i < len(config.DestinationHosts); i++ {
-		fmt.Printf("Destination host: %s %d\n", config.DestinationHosts[i].Host, config.DestinationHosts[i].Value)
+		Log.LogDebug(fmt.Sprintf("Destination host: Host=%s Region=%d", config.DestinationHosts[i].Host, config.DestinationHosts[i].Value))
 		destinationHosts = append(destinationHosts, DestinationHost{
 			host:      config.DestinationHosts[i].Host,
 			value:     config.DestinationHosts[i].Value,
@@ -115,9 +121,9 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		})
 	}
 	if config.IsLittleEndian {
-		fmt.Printf("Endianness set to little\n")
+		Log.LogDebug("Endianness=little")
 	} else {
-		fmt.Printf("Endianness set to big\n")
+		Log.LogDebug("Endianness=big")
 	}
 
 	return &RegionalRouter{
@@ -153,18 +159,18 @@ func findRegionHost(region byte, hosts []DestinationHost, previousHost string) (
 }
 
 func isMatching(matchPath *MatchPathRegex, req *http.Request) bool {
-	fmt.Printf("Try regex: %s on path: %s with result: %t\n", matchPath.stringRegex, req.URL.Path, matchPath.regex.MatchString(req.URL.Path))
+	Log.LogDebug(fmt.Sprintf("Try regex: %s on path: %s with result: %t", matchPath.stringRegex, req.URL.Path, matchPath.regex.MatchString(req.URL.Path)))
 	if matchPath.regex.MatchString(req.URL.Path) {
 		if matchPath.methods != nil && len(matchPath.methods) > 0 {
-			fmt.Printf("Filter by methods\n")
+			Log.LogDebug(fmt.Sprintf("Filter by methods"))
 			for _, value := range matchPath.methods {
 				if value == req.Method {
-					fmt.Printf("The current Path `%s` `%s` match with url rewrite rules\n", req.Method, req.URL.Path)
+					Log.LogInformation(fmt.Sprintf("The current Path `%s` `%s` match with url rewrite rules", req.Method, req.URL.Path))
 					return true
 				}
 			}
 		} else {
-			fmt.Printf("The current Path `%s` match with url rewrite rules\n", req.URL.Path)
+			Log.LogInformation(fmt.Sprintf("The current Path `%s` match with url rewrite rules", req.URL.Path))
 			return true
 		}
 	}
@@ -183,7 +189,7 @@ func redirectFromUuid(region byte,
 			newLocation = regionalRouter.defaultScheme + "://" + regionHost + req.URL.Path
 		}
 
-		fmt.Printf("New location: %s\n", newLocation)
+		Log.LogInformation(fmt.Sprintf("Redirection to location: %s", newLocation))
 		return &newLocation, nil
 	}
 	return nil, nil
@@ -212,15 +218,17 @@ func handlePathRedirection(matchPath *MatchPathRegex,
 func handleJwtRedirection(req *http.Request,
 	regionalRouter *RegionalRouter) (*string, error) {
 	authorizationToken := req.Header.Get("Authorization")
+	if authorizationToken == "" {
+		return nil, nil
+	}
 	token, err := jwt.Parse(authorizationToken)
 	if err != nil {
-		fmt.Printf("Fail to parse jwt. Missing or invalid\n")
 		return nil, err
 	}
 	if token != nil {
 		value, contain := token.Payload[JwtClaimUserId]
 		if contain {
-			fmt.Printf("Token found with userId=%s\n", value)
+			Log.LogDebug(fmt.Sprintf("Token found with userId=%s", value))
 			rUuid, err := regional_uuid.Regional.Read(value, regionalRouter.isLittleEndian)
 			if err != nil {
 				return nil, err
@@ -239,7 +247,7 @@ func handleJwtRedirection(req *http.Request,
 
 func (a *RegionalRouter) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if isGlobalHost(req.Host, a.globalHostUrls) {
-		fmt.Printf("Handle current host: %s\n", req.Host)
+		Log.LogInformation(fmt.Sprintf("Handle current host: %s", req.Host))
 		for i := 0; i < len(a.matchPaths); i++ {
 			matchPath := a.matchPaths[i]
 			if isMatching(&matchPath, req) {
@@ -249,12 +257,14 @@ func (a *RegionalRouter) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 				case MatchPathTypeJwt:
 					newLocation, err = handleJwtRedirection(req, a)
 					if err != nil {
+						Log.LogError(fmt.Sprintf("%v", err))
 						// todo log into airbrake
 						break
 					}
 				case MatchPathTypePath:
 					newLocation, err = handlePathRedirection(&matchPath, req, a)
 					if err != nil {
+						Log.LogError(fmt.Sprintf("%v", err))
 						// todo log into airbrake
 						break
 					}

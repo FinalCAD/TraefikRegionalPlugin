@@ -45,3 +45,4 @@ http:
               value: 2
           IsLittleEndian: true
           DefaultScheme: http
+          Log: Information
