@@ -15,7 +15,7 @@ func TestRedirectToEuropeFromUuid(t *testing.T) {
 		{
 			Regex: "^\\/project\\/(([0-9A-Fa-f]{8}[-]){2,}([0-9A-Fa-f]{4}[-]){3}[0-9A-Fa-f]{12})$",
 			Index: 0,
-			Type:  "UUID",
+			Type:  "PATH",
 		},
 	}
 	cfg.DestinationHosts = []TraefikRegionalPlugin.DestinationHostConfig{
