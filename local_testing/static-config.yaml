@@ -1,5 +1,5 @@
 pilot:
-  token: token #####
+  token: token 12
 log:
   level: INFO
 api:

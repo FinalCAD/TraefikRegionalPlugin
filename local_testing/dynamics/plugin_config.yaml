@@ -32,7 +32,12 @@ http:
             - "whoami.localhost"
           MatchPaths:
             - regex: ^\/project\/(([0-9A-Fa-f]{8}[-]){2,}([0-9A-Fa-f]{4}[-]){3}[0-9A-Fa-f]{12})$
+              type: "PATH"
               index: 0
+            - regex: ^\/project$
+              type: "JWT"
+              methods:
+                - "POST"
           DestinationHosts:
             - host: "whoami.ja.localhost"
               value: 1
