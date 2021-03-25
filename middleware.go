@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/airbrake/gobrake/v5"
 	"github.com/finalcad/TraefikRegionalPlugin/jwt"
 	"github.com/finalcad/TraefikRegionalPlugin/regional_uuid"
 	"net/http"
@@ -29,6 +30,12 @@ type DestinationHostConfig struct {
 	IsCurrent bool   `json:"is_current,omitempty"`
 }
 
+type AirbrakeConfig struct {
+	ProjectId   int64  `json:"project_id,omitempty"`
+	ProjectKey  string `json:"project_key,omitempty"`
+	Environment string `json:"environment,omitempty"`
+}
+
 type Config struct {
 	GlobalHostUrls   []string                `json:"global_host_urls,omitempty"`
 	MatchPaths       []MatchPathRegexConfig  `json:"match_urls,omitempty"`
@@ -36,6 +43,7 @@ type Config struct {
 	IsLittleEndian   bool                    `json:"little_endian,omitempty"`
 	DefaultScheme    string                  `json:"default_schema,omitempty"`
 	Log              string                  `json:"log,omitempty"`
+	Airbrake         AirbrakeConfig          `json:"airbrake,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -71,6 +79,7 @@ type RegionalRouter struct {
 	defaultScheme    string
 	isLittleEndian   bool
 	name             string
+	airbrake         *gobrake.Notifier
 }
 
 func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
@@ -79,6 +88,17 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	Log.SetLevel(config.Log)
 
 	Log.LogInformation("Load configuration")
+	var airbrake *gobrake.Notifier = nil
+	if config.Airbrake.ProjectId != 0 &&
+		config.Airbrake.ProjectKey != "" &&
+		config.Airbrake.Environment != "" {
+		Log.LogInformation("Load airbrake for reporting error")
+		airbrake = gobrake.NewNotifierWithOptions(&gobrake.NotifierOptions{
+			ProjectId:   config.Airbrake.ProjectId,
+			ProjectKey:  config.Airbrake.ProjectKey,
+			Environment: config.Airbrake.Environment,
+		})
+	}
 
 	Log.LogDebug(fmt.Sprintf("%d GlobalHosts found", len(config.GlobalHostUrls)))
 	for i := 0; i < len(config.GlobalHostUrls); i++ {
@@ -134,6 +154,7 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		defaultScheme:    config.DefaultScheme,
 		next:             next,
 		name:             name,
+		airbrake:         airbrake,
 	}, nil
 }
 
@@ -258,14 +279,18 @@ func (a *RegionalRouter) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 					newLocation, err = handleJwtRedirection(req, a)
 					if err != nil {
 						Log.LogError(fmt.Sprintf("%v", err))
-						// todo log into airbrake
+						if a.airbrake != nil {
+							a.airbrake.Notify(err, req)
+						}
 						break
 					}
 				case MatchPathTypePath:
 					newLocation, err = handlePathRedirection(&matchPath, req, a)
 					if err != nil {
 						Log.LogError(fmt.Sprintf("%v", err))
-						// todo log into airbrake
+						if a.airbrake != nil {
+							a.airbrake.Notify(err, req)
+						}
 						break
 					}
 				}

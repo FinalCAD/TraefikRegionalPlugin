@@ -46,3 +46,7 @@ http:
           IsLittleEndian: true
           DefaultScheme: http
           Log: Information
+          Airbrake:
+            ProjectId: 42
+            ProjectKey: "test"
+            Environment: "Local"
