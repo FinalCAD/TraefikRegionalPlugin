@@ -104,8 +104,8 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		} else if config.MatchPaths[i].Type == MatchPathTypePath {
 			Log.LogDebug(fmt.Sprintf("\tMatchPath PATH: Regex=%s Index=%d", config.MatchPaths[i].Regex, config.MatchPaths[i].Index))
 		} else {
-			Log.LogWarning(fmt.Sprintf("\tUnknown type %s. The regex %s is ignored", config.MatchPaths[i].Type, config.MatchPaths[i].Regex))
-			continue
+			Log.LogWarning(fmt.Sprintf("\tUnknown type %s. The regex %s is set to %s", config.MatchPaths[i].Type, config.MatchPaths[i].Regex, MatchPathTypePath))
+			matchPathRegex.matchType = MatchPathTypePath
 		}
 		matchPathRegexp = append(matchPathRegexp, matchPathRegex)
 	}
