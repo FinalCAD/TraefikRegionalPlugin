@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"github.com/finalcad/TraefikRegionalPlugin/jwt"
 	"github.com/finalcad/TraefikRegionalPlugin/regional_uuid"
+	"io"
 	"net/http"
+	"net/url"
 	"regexp"
 )
 
@@ -71,6 +73,12 @@ type RegionalRouter struct {
 	defaultScheme    string
 	isLittleEndian   bool
 	name             string
+}
+
+type redirectioninfo struct {
+	Scheme string
+	Host   string
+	Path   string
 }
 
 func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
@@ -179,25 +187,28 @@ func isMatching(matchPath *MatchPathRegex, req *http.Request) bool {
 
 func redirectFromUuid(region byte,
 	req *http.Request,
-	regionalRouter *RegionalRouter) (*string, error) {
+	regionalRouter *RegionalRouter) (*redirectioninfo, error) {
 	regionHost, err := findRegionHost(region, regionalRouter.destinationHosts, req.Host)
 	if err == nil && regionHost != req.Host {
-		var newLocation string
-		if req.URL.Scheme != "" {
-			newLocation = req.URL.Scheme + "://" + regionHost + req.URL.Path
-		} else {
-			newLocation = regionalRouter.defaultScheme + "://" + regionHost + req.URL.Path
+		newLocation := &redirectioninfo{
+			Host:   regionHost,
+			Path:   req.URL.Path,
+			Scheme: "https", // TODO CHANGE TO HTTP
 		}
 
-		Log.LogInformation(fmt.Sprintf("Redirection to location: %s", newLocation))
-		return &newLocation, nil
+		if req.TLS != nil {
+			newLocation.Scheme = "https"
+		}
+
+		Log.LogInformation(fmt.Sprintf("Redirection to location: %s://%s%s", newLocation.Scheme, newLocation.Host, newLocation.Path))
+		return newLocation, nil
 	}
 	return nil, nil
 }
 
 func handlePathRedirection(matchPath *MatchPathRegex,
 	req *http.Request,
-	regionalRouter *RegionalRouter) (*string, error) {
+	regionalRouter *RegionalRouter) (*redirectioninfo, error) {
 	subMatch := matchPath.regex.FindStringSubmatch(req.URL.Path)
 	if len(subMatch) >= matchPath.index+1 {
 		rUuid, err := regional_uuid.Regional.Read(subMatch[matchPath.index+1], regionalRouter.isLittleEndian)
@@ -216,7 +227,7 @@ func handlePathRedirection(matchPath *MatchPathRegex,
 }
 
 func handleJwtRedirection(req *http.Request,
-	regionalRouter *RegionalRouter) (*string, error) {
+	regionalRouter *RegionalRouter) (*redirectioninfo, error) {
 	authorizationToken := req.Header.Get("Authorization")
 	if authorizationToken == "" {
 		return nil, nil
@@ -251,7 +262,7 @@ func (a *RegionalRouter) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		for i := 0; i < len(a.matchPaths); i++ {
 			matchPath := a.matchPaths[i]
 			if isMatching(&matchPath, req) {
-				var newLocation *string
+				var newLocation *redirectioninfo
 				var err error
 				switch matchPath.matchType {
 				case MatchPathTypeJwt:
@@ -270,8 +281,36 @@ func (a *RegionalRouter) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 					}
 				}
 				if newLocation != nil {
-					rw.Header().Add("Location", *newLocation)
-					rw.WriteHeader(http.StatusTemporaryRedirect)
+					parsedURL, err := url.Parse(newLocation.Scheme + "://" + newLocation.Host + newLocation.Path)
+					if err != nil {
+						Log.LogError(fmt.Sprintf("%v", err))
+						a.next.ServeHTTP(rw, req)
+						return
+					}
+					reqClone := req.Clone(context.TODO())
+					reqClone.URL = parsedURL
+					reqClone.Host = newLocation.Host
+					reqClone.RequestURI = ""
+					reqClone.Header.Set("X-Forwarded-Host", req.Host)
+					httpClient := http.Client{}
+					resp, err := httpClient.Do(reqClone)
+					if err != nil {
+						Log.LogError(fmt.Sprintf("An error happened during the redirection. %v", err))
+						a.next.ServeHTTP(rw, req)
+						return
+					}
+					Log.LogInformation(fmt.Sprintf("Response received with status code %d", resp.StatusCode))
+					for key, _ := range resp.Header {
+						value := resp.Header.Get(key)
+						rw.Header().Add(key, value)
+					}
+					rw.WriteHeader(resp.StatusCode)
+					io.Copy(rw, resp.Body)
+					resp.Body.Close()
+					return
+					//					a.next.ServeHTTP(rw, req)
+					/*rw.Header().Add("Location", *newLocation)
+					rw.WriteHeader(http.StatusTemporaryRedirect)*/
 					return
 				}
 			}

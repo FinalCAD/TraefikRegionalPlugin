@@ -16,9 +16,25 @@ services:
       - "./dynamics:/config/dyns/"
       - "../.:/plugins/go/src/github.com/finalcad/TraefikRegionalPlugin/"
 
-  whoami:
+  whoami-ja:
     image: "traefik/whoami"
-    container_name: "simple-service_finalcad"
+    container_name: "whoami-ja"
     labels:
       - "traefik.enable=true"
+    environment:
+      - "WHOAMI_NAME=japan-router"
+  whoami-na:
+    image: "traefik/whoami"
+    container_name: "whoami-na"
+    labels:
+      - "traefik.enable=true"
+    environment:
+      - "WHOAMI_NAME=north-america-router"
+  whoami-default:
+    image: "traefik/whoami"
+    container_name: "whoami-default"
+    labels:
+      - "traefik.enable=true"
+    environment:
+      - "WHOAMI_NAME=default-router"
 
