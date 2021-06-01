@@ -18,7 +18,6 @@ const (
 	JwtClaimUserId    = "fcUserId"
 )
 
-// Config
 type MatchPathRegexConfig struct {
 	Regex   string   `json:"regex,omitempty"`
 	Type    string   `json:"type,omitempty"`
@@ -75,7 +74,7 @@ type RegionalRouter struct {
 	name             string
 }
 
-type redirectioninfo struct {
+type redirectionInfo struct {
 	Scheme string
 	Host   string
 	Path   string
@@ -187,13 +186,13 @@ func isMatching(matchPath *MatchPathRegex, req *http.Request) bool {
 
 func redirectFromUuid(region byte,
 	req *http.Request,
-	regionalRouter *RegionalRouter) (*redirectioninfo, error) {
+	regionalRouter *RegionalRouter) (*redirectionInfo, error) {
 	regionHost, err := findRegionHost(region, regionalRouter.destinationHosts, req.Host)
 	if err == nil && regionHost != req.Host {
-		newLocation := &redirectioninfo{
+		newLocation := &redirectionInfo{
 			Host:   regionHost,
 			Path:   req.URL.Path,
-			Scheme: "https", // TODO CHANGE TO HTTP
+			Scheme: "http",
 		}
 
 		if req.TLS != nil {
@@ -208,7 +207,7 @@ func redirectFromUuid(region byte,
 
 func handlePathRedirection(matchPath *MatchPathRegex,
 	req *http.Request,
-	regionalRouter *RegionalRouter) (*redirectioninfo, error) {
+	regionalRouter *RegionalRouter) (*redirectionInfo, error) {
 	subMatch := matchPath.regex.FindStringSubmatch(req.URL.Path)
 	if len(subMatch) >= matchPath.index+1 {
 		rUuid, err := regional_uuid.Regional.Read(subMatch[matchPath.index+1], regionalRouter.isLittleEndian)
@@ -227,7 +226,7 @@ func handlePathRedirection(matchPath *MatchPathRegex,
 }
 
 func handleJwtRedirection(req *http.Request,
-	regionalRouter *RegionalRouter) (*redirectioninfo, error) {
+	regionalRouter *RegionalRouter) (*redirectionInfo, error) {
 	authorizationToken := req.Header.Get("Authorization")
 	if authorizationToken == "" {
 		return nil, nil
@@ -262,21 +261,21 @@ func (a *RegionalRouter) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		for i := 0; i < len(a.matchPaths); i++ {
 			matchPath := a.matchPaths[i]
 			if isMatching(&matchPath, req) {
-				var newLocation *redirectioninfo
+				var newLocation *redirectionInfo
 				var err error
 				switch matchPath.matchType {
 				case MatchPathTypeJwt:
 					newLocation, err = handleJwtRedirection(req, a)
 					if err != nil {
 						Log.LogError(fmt.Sprintf("%v", err))
-						// todo log into airbrake
+						// TODO log into airbrake when airbrake is supported
 						break
 					}
 				case MatchPathTypePath:
 					newLocation, err = handlePathRedirection(&matchPath, req, a)
 					if err != nil {
 						Log.LogError(fmt.Sprintf("%v", err))
-						// todo log into airbrake
+						// TODO log into airbrake when airbrake is supported
 						break
 					}
 				}
@@ -296,21 +295,25 @@ func (a *RegionalRouter) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 					resp, err := httpClient.Do(reqClone)
 					if err != nil {
 						Log.LogError(fmt.Sprintf("An error happened during the redirection. %v", err))
-						a.next.ServeHTTP(rw, req)
+						rw.WriteHeader(http.StatusBadGateway)
+						// TODO log into airbrake when airbrake is supported
 						return
 					}
 					Log.LogInformation(fmt.Sprintf("Response received with status code %d", resp.StatusCode))
-					for key, _ := range resp.Header {
+					for key := range resp.Header {
 						value := resp.Header.Get(key)
 						rw.Header().Add(key, value)
 					}
 					rw.WriteHeader(resp.StatusCode)
-					io.Copy(rw, resp.Body)
+					_, err = io.Copy(rw, resp.Body)
+					if err != nil {
+						Log.LogError(fmt.Sprintf("An error happened during the copy of http response. %v", err))
+						rw.WriteHeader(http.StatusBadGateway)
+						resp.Body.Close()
+						// TODO log into airbrake when airbrake is supported
+						return
+					}
 					resp.Body.Close()
-					return
-					//					a.next.ServeHTTP(rw, req)
-					/*rw.Header().Add("Location", *newLocation)
-					rw.WriteHeader(http.StatusTemporaryRedirect)*/
 					return
 				}
 			}
