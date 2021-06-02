@@ -19,6 +19,8 @@ services:
   whoami-ja:
     image: "traefik/whoami"
     container_name: "whoami-ja"
+    ports:
+      - "8001:80"
     labels:
       - "traefik.enable=true"
     environment:
@@ -26,6 +28,8 @@ services:
   whoami-na:
     image: "traefik/whoami"
     container_name: "whoami-na"
+    ports:
+      - "8002:80"
     labels:
       - "traefik.enable=true"
     environment:
@@ -33,6 +37,8 @@ services:
   whoami-default:
     image: "traefik/whoami"
     container_name: "whoami-default"
+    ports:
+      - "8003:80"
     labels:
       - "traefik.enable=true"
     environment:

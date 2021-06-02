@@ -1,19 +1,19 @@
 http:
   routers:
     my-router:
-      rule: host(`whoami.localhost`)
+      rule: host(`api.massive-dynamic.com`)
       service: service-default
       entryPoints:
         - web
       middlewares:
         - TraefikRegionalPlugin
     my-ja-router:
-      rule: host(`whoami.ja.localhost`)
+      rule: host(`api.ja.massive-dynamic.com`)
       service: service-ja
       entryPoints:
         - web
     my-na-router:
-      rule: host(`whoami.na.localhost`)
+      rule: host(`api.na.massive-dynamic.com`)
       service: service-na
       entryPoints:
         - web
@@ -37,7 +37,7 @@ http:
       plugin:
         dev:
           GlobalHostUrls:
-            - "whoami.localhost"
+            - "api.massive-dynamic.com"
           MatchPaths:
             - regex: ^\/api\/projects\/(([0-9A-Fa-f]{8}[-]){2,}([0-9A-Fa-f]{4}[-]){3}[0-9A-Fa-f]{12})$
               type: "PATH"
@@ -47,10 +47,13 @@ http:
               methods:
                 - "POST"
           DestinationHosts:
-            - host: "projects-service-api.priv.eu.sandbox.finalcad.cloud"
+            - host: "api.ja.massive-dynamic.com"
               value: 1
-            - host: "whoami.na.localhost"
+              isCurrent: false
+            - host: "api.na.massive-dynamic.com"
               value: 2
+              isCurrent: false
           IsLittleEndian: true
           DefaultScheme: http
-          Log: Information
+          Log: Debug
+          RoutingMethod: Redirect

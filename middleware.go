@@ -13,9 +13,11 @@ import (
 )
 
 const (
-	MatchPathTypePath = "PATH"
-	MatchPathTypeJwt  = "JWT"
-	JwtClaimUserId    = "fcUserId"
+	MatchPathTypePath       = "PATH"
+	MatchPathTypeJwt        = "JWT"
+	JwtClaimUserId          = "fcUserId"
+	RoutingMethodRedirect   = "Redirect"
+	RoutingMethodDirectCall = "DirectCall"
 )
 
 type MatchPathRegexConfig struct {
@@ -37,6 +39,7 @@ type Config struct {
 	IsLittleEndian   bool                    `json:"little_endian,omitempty"`
 	DefaultScheme    string                  `json:"default_schema,omitempty"`
 	Log              string                  `json:"log,omitempty"`
+	RoutingMethod    string                  `json:"routing_method,omitempty"`
 }
 
 // CreateConfig creates the default plugin configuration.
@@ -48,17 +51,18 @@ func CreateConfig() *Config {
 		IsLittleEndian:   true,
 		DefaultScheme:    "https",
 		Log:              Information,
+		RoutingMethod:    RoutingMethodDirectCall,
 	}
 }
 
-type MatchPathRegex struct {
+type matchPathRegex struct {
 	stringRegex string
 	regex       *regexp.Regexp
 	matchType   string
 	index       int
 	methods     []string
 }
-type DestinationHost struct {
+type destinationHost struct {
 	host      string
 	value     int
 	isCurrent bool
@@ -67,21 +71,23 @@ type DestinationHost struct {
 type RegionalRouter struct {
 	next             http.Handler
 	globalHostUrls   []string
-	matchPaths       []MatchPathRegex
-	destinationHosts []DestinationHost
+	matchPaths       []matchPathRegex
+	destinationHosts []destinationHost
 	defaultScheme    string
 	isLittleEndian   bool
 	name             string
+	routingMethod    string
 }
 
 type redirectionInfo struct {
-	Scheme string
-	Host   string
-	Path   string
+	scheme        string
+	host          string
+	path          string
+	routingMethod string
 }
 
 func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
-	var matchPathRegexp []MatchPathRegex
+	var matchPathRegexp []matchPathRegex
 
 	Log.SetLevel(config.Log)
 
@@ -99,7 +105,7 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 			Log.LogError(fmt.Sprintf("Invalid regex `%s`", config.MatchPaths[i].Regex))
 			return nil, errors.New("invalid regexp `" + config.MatchPaths[i].Regex + "`")
 		}
-		matchPathRegex := MatchPathRegex{
+		matchPathRegex := matchPathRegex{
 			regex:       regex,
 			index:       config.MatchPaths[i].Index,
 			stringRegex: config.MatchPaths[i].Regex,
@@ -118,10 +124,10 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	}
 
 	Log.LogDebug(fmt.Sprintf("%d Destination hosts found", len(config.DestinationHosts)))
-	var destinationHosts []DestinationHost
+	var destinationHosts []destinationHost
 	for i := 0; i < len(config.DestinationHosts); i++ {
-		Log.LogDebug(fmt.Sprintf("Destination host: Host=%s Region=%d", config.DestinationHosts[i].Host, config.DestinationHosts[i].Value))
-		destinationHosts = append(destinationHosts, DestinationHost{
+		Log.LogDebug(fmt.Sprintf("Destination host: Host=%s Region=%d IsCurrent=%t", config.DestinationHosts[i].Host, config.DestinationHosts[i].Value, config.DestinationHosts[i].IsCurrent))
+		destinationHosts = append(destinationHosts, destinationHost{
 			host:      config.DestinationHosts[i].Host,
 			value:     config.DestinationHosts[i].Value,
 			isCurrent: config.DestinationHosts[i].IsCurrent,
@@ -133,6 +139,12 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		Log.LogDebug("Endianness=big")
 	}
 
+	routingMethod := RoutingMethodRedirect
+	if config.RoutingMethod == RoutingMethodDirectCall {
+		routingMethod = RoutingMethodDirectCall
+	}
+	Log.LogDebug(fmt.Sprintf("RoutingMethod configure to %s", routingMethod))
+
 	return &RegionalRouter{
 		globalHostUrls:   config.GlobalHostUrls,
 		matchPaths:       matchPathRegexp,
@@ -141,6 +153,7 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 		defaultScheme:    config.DefaultScheme,
 		next:             next,
 		name:             name,
+		routingMethod:    routingMethod,
 	}, nil
 }
 
@@ -153,10 +166,11 @@ func isGlobalHost(url string, globalHostUrls []string) bool {
 	return false
 }
 
-func findRegionHost(region byte, hosts []DestinationHost, previousHost string) (string, error) {
+func findRegionHost(region byte, hosts []destinationHost, previousHost string) (string, error) {
 	for i := 0; i < len(hosts); i++ {
 		if int(region) == hosts[i].value {
 			if hosts[i].isCurrent {
+				Log.LogDebug("Redirect on current host. Send previous host")
 				return previousHost, nil
 			}
 			return hosts[i].host, nil
@@ -165,7 +179,7 @@ func findRegionHost(region byte, hosts []DestinationHost, previousHost string) (
 	return "", errors.New("no region found")
 }
 
-func isMatching(matchPath *MatchPathRegex, req *http.Request) bool {
+func isMatching(matchPath *matchPathRegex, req *http.Request) bool {
 	Log.LogDebug(fmt.Sprintf("Try regex: %s on path: %s with result: %t", matchPath.stringRegex, req.URL.Path, matchPath.regex.MatchString(req.URL.Path)))
 	if matchPath.regex.MatchString(req.URL.Path) {
 		if matchPath.methods != nil && len(matchPath.methods) > 0 {
@@ -190,22 +204,23 @@ func redirectFromUuid(region byte,
 	regionHost, err := findRegionHost(region, regionalRouter.destinationHosts, req.Host)
 	if err == nil && regionHost != req.Host {
 		newLocation := &redirectionInfo{
-			Host:   regionHost,
-			Path:   req.URL.Path,
-			Scheme: "http",
+			host:          regionHost,
+			path:          req.URL.Path,
+			scheme:        "http",
+			routingMethod: regionalRouter.routingMethod,
 		}
 
 		if req.TLS != nil {
-			newLocation.Scheme = "https"
+			newLocation.scheme = "https"
 		}
 
-		Log.LogInformation(fmt.Sprintf("Redirection to location: %s://%s%s", newLocation.Scheme, newLocation.Host, newLocation.Path))
+		Log.LogInformation(fmt.Sprintf("Redirection to location: %s://%s%s", newLocation.scheme, newLocation.host, newLocation.path))
 		return newLocation, nil
 	}
 	return nil, nil
 }
 
-func handlePathRedirection(matchPath *MatchPathRegex,
+func handlePathRedirection(matchPath *matchPathRegex,
 	req *http.Request,
 	regionalRouter *RegionalRouter) (*redirectionInfo, error) {
 	subMatch := matchPath.regex.FindStringSubmatch(req.URL.Path)
@@ -255,6 +270,69 @@ func handleJwtRedirection(req *http.Request,
 	return nil, nil
 }
 
+func sendHTTPRequest(rw http.ResponseWriter, req *http.Request, destination string) {
+	parsedURL, err := url.Parse(destination)
+	if err != nil {
+		Log.LogError(fmt.Sprintf("%v", err))
+		rw.WriteHeader(http.StatusBadGateway)
+		// TODO log into airbrake when airbrake is supported
+		return
+	}
+	reqClone := req.Clone(context.TODO())
+	reqClone.URL = parsedURL
+	reqClone.Host = parsedURL.Host
+	reqClone.RequestURI = ""
+	httpClient := http.Client{}
+	resp, err := httpClient.Do(reqClone)
+	if err != nil {
+		Log.LogError(fmt.Sprintf("An error happened during the redirection. %v", err))
+		rw.WriteHeader(http.StatusBadGateway)
+		// TODO log into airbrake when airbrake is supported
+		return
+	}
+	Log.LogInformation(fmt.Sprintf("Response received with status code %d", resp.StatusCode))
+	for key := range resp.Header {
+		value := resp.Header.Get(key)
+		rw.Header().Add(key, value)
+	}
+	rw.WriteHeader(resp.StatusCode)
+	_, err = io.Copy(rw, resp.Body)
+	if err != nil {
+		Log.LogError(fmt.Sprintf("An error happened during the copy of http response. %v", err))
+		rw.WriteHeader(http.StatusBadGateway)
+		resp.Body.Close()
+		// TODO log into airbrake when airbrake is supported
+		return
+	}
+	resp.Body.Close()
+}
+
+func (r *redirectionInfo) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
+	destinationUrl := r.scheme + "://" + r.host + r.path
+	if r.routingMethod == RoutingMethodDirectCall {
+		sendHTTPRequest(rw, req, destinationUrl)
+	} else {
+		if req.Method == http.MethodOptions {
+			sendHTTPRequest(rw, req, destinationUrl)
+			return
+		}
+		rw.Header().Set("Location", destinationUrl)
+		if origin := req.Header.Get("Origin"); origin != "" {
+			rw.Header().Set("Access-Control-Allow-Origin", origin)
+		}
+
+		status := http.StatusFound
+		if req.Method != http.MethodGet {
+			status = http.StatusTemporaryRedirect
+		}
+		rw.WriteHeader(status)
+		_, err := rw.Write([]byte(http.StatusText(status)))
+		if err != nil {
+			http.Error(rw, err.Error(), http.StatusInternalServerError)
+		}
+	}
+}
+
 func (a *RegionalRouter) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if isGlobalHost(req.Host, a.globalHostUrls) {
 		Log.LogInformation(fmt.Sprintf("Handle current host: %s", req.Host))
@@ -280,45 +358,11 @@ func (a *RegionalRouter) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 					}
 				}
 				if newLocation != nil {
-					parsedURL, err := url.Parse(newLocation.Scheme + "://" + newLocation.Host + newLocation.Path)
-					if err != nil {
-						Log.LogError(fmt.Sprintf("%v", err))
-						a.next.ServeHTTP(rw, req)
-						return
-					}
-					reqClone := req.Clone(context.TODO())
-					reqClone.URL = parsedURL
-					reqClone.Host = newLocation.Host
-					reqClone.RequestURI = ""
-					reqClone.Header.Set("X-Forwarded-Host", req.Host)
-					httpClient := http.Client{}
-					resp, err := httpClient.Do(reqClone)
-					if err != nil {
-						Log.LogError(fmt.Sprintf("An error happened during the redirection. %v", err))
-						rw.WriteHeader(http.StatusBadGateway)
-						// TODO log into airbrake when airbrake is supported
-						return
-					}
-					Log.LogInformation(fmt.Sprintf("Response received with status code %d", resp.StatusCode))
-					for key := range resp.Header {
-						value := resp.Header.Get(key)
-						rw.Header().Add(key, value)
-					}
-					rw.WriteHeader(resp.StatusCode)
-					_, err = io.Copy(rw, resp.Body)
-					if err != nil {
-						Log.LogError(fmt.Sprintf("An error happened during the copy of http response. %v", err))
-						rw.WriteHeader(http.StatusBadGateway)
-						resp.Body.Close()
-						// TODO log into airbrake when airbrake is supported
-						return
-					}
-					resp.Body.Close()
+					newLocation.ServeHTTP(rw, req)
 					return
 				}
 			}
 		}
 	}
-
 	a.next.ServeHTTP(rw, req)
 }
