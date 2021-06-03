@@ -47,7 +47,7 @@ func TestRedirectToEuropeFromUuid(t *testing.T) {
 
 	handler.ServeHTTP(recorder, req)
 
-	assertResponseCode(t, recorder, http.StatusTemporaryRedirect)
+	assertResponseCode(t, recorder, http.StatusFound)
 	assertResponseHeader(t, recorder, "Location", "http://api.ja.massive-dynamic.com/project/31e6aeb6-1411f3f2-3d9b-46fd-9d52-dd91585b6a8e")
 }
 

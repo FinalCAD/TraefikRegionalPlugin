@@ -51,7 +51,7 @@ func CreateConfig() *Config {
 		IsLittleEndian:   true,
 		DefaultScheme:    "https",
 		Log:              Information,
-		RoutingMethod:    RoutingMethodDirectCall,
+		RoutingMethod:    RoutingMethodRedirect,
 	}
 }
 
