@@ -143,7 +143,7 @@ func New(_ context.Context, next http.Handler, config *Config, name string) (htt
 	if config.RoutingMethod == RoutingMethodDirectCall {
 		routingMethod = RoutingMethodDirectCall
 	}
-	Log.LogDebug(fmt.Sprintf("RoutingMethod configure to %s", routingMethod))
+	Log.LogDebug(fmt.Sprintf("RoutingMethod configured to %s", routingMethod))
 
 	return &RegionalRouter{
 		globalHostUrls:   config.GlobalHostUrls,
@@ -270,7 +270,7 @@ func handleJwtRedirection(req *http.Request,
 	return nil, nil
 }
 
-func sendHTTPRequest(rw http.ResponseWriter, req *http.Request, destination string) {
+func proxyHTTPRequest(rw http.ResponseWriter, req *http.Request, destination string) {
 	parsedURL, err := url.Parse(destination)
 	if err != nil {
 		Log.LogError(fmt.Sprintf("%v", err))
@@ -310,10 +310,10 @@ func sendHTTPRequest(rw http.ResponseWriter, req *http.Request, destination stri
 func (r *redirectionInfo) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	destinationUrl := r.scheme + "://" + r.host + r.path
 	if r.routingMethod == RoutingMethodDirectCall {
-		sendHTTPRequest(rw, req, destinationUrl)
+		proxyHTTPRequest(rw, req, destinationUrl)
 	} else {
 		if req.Method == http.MethodOptions {
-			sendHTTPRequest(rw, req, destinationUrl)
+			proxyHTTPRequest(rw, req, destinationUrl)
 			return
 		}
 		rw.Header().Set("Location", destinationUrl)

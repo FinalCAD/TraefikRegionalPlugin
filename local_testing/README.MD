@@ -11,7 +11,7 @@ For Windows user, add this following line into the file `C:\Windows\System32\dri
 127.0.0.1 api.na.massive-dynamic.com
 ```
 
-For Linux user, add this following line into /etc/hosts
+For Unix user, add this following line into /etc/hosts
 
 ```
 127.0.0.1 api.massive-dynamic.com
