@@ -1,37 +1,45 @@
 http:
   routers:
     my-router:
-      rule: host(`whoami.localhost`)
-      service: service-foo
+      rule: host(`api.massive-dynamic.com`)
+      service: service-default
       entryPoints:
         - web
       middlewares:
         - TraefikRegionalPlugin
     my-ja-router:
-      rule: host(`whoami.ja.localhost`)
-      service: service-foo
+      rule: host(`api.ja.massive-dynamic.com`)
+      service: service-ja
       entryPoints:
         - web
     my-na-router:
-      rule: host(`whoami.na.localhost`)
-      service: service-foo
+      rule: host(`api.na.massive-dynamic.com`)
+      service: service-na
       entryPoints:
         - web
 
   services:
-    service-foo:
+    service-ja:
       loadBalancer:
         servers:
-          - url: http://whoami:80
+          - url:  http://whoami-ja:80
+    service-default:
+      loadBalancer:
+        servers:
+          - url: http://whoami-default:80
+    service-na:
+      loadBalancer:
+        servers:
+          - url: http://whoami-na:80
 
   middlewares:
     TraefikRegionalPlugin:
       plugin:
         dev:
           GlobalHostUrls:
-            - "whoami.localhost"
+            - "api.massive-dynamic.com"
           MatchPaths:
-            - regex: ^\/project\/(([0-9A-Fa-f]{8}[-]){2,}([0-9A-Fa-f]{4}[-]){3}[0-9A-Fa-f]{12})$
+            - regex: ^\/api\/projects\/(([0-9A-Fa-f]{8}[-]){2,}([0-9A-Fa-f]{4}[-]){3}[0-9A-Fa-f]{12})$
               type: "PATH"
               index: 0
             - regex: ^\/project$
@@ -39,10 +47,13 @@ http:
               methods:
                 - "POST"
           DestinationHosts:
-            - host: "whoami.ja.localhost"
+            - host: "api.ja.massive-dynamic.com"
               value: 1
-            - host: "whoami.na.localhost"
+              isCurrent: false
+            - host: "api.na.massive-dynamic.com"
               value: 2
+              isCurrent: false
           IsLittleEndian: true
           DefaultScheme: http
-          Log: Information
+          Log: Debug
+          RoutingMethod: Redirect
