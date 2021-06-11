@@ -326,6 +326,8 @@ func (r *redirectionInfo) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		rw.Header().Set("Location", destinationUrl)
 		if origin := req.Header.Get("Origin"); origin != "" {
 			rw.Header().Set("Access-Control-Allow-Origin", origin)
+			rw.Header().Set("Access-Control-Request-Method", "*")
+			rw.Header().Set("Access-Control-Request-Headers", "*")
 		}
 
 		status := http.StatusFound
