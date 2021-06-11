@@ -202,7 +202,11 @@ func redirectFromUuid(region byte,
 	req *http.Request,
 	regionalRouter *RegionalRouter) (*redirectionInfo, error) {
 	regionHost, err := findRegionHost(region, regionalRouter.destinationHosts, req.Host)
-	if err == nil && regionHost != req.Host {
+	if err != nil {
+		Log.LogError(fmt.Sprintf("Can't find valid region"))
+		return nil, err
+	}
+	if regionHost != req.Host {
 		newLocation := &redirectionInfo{
 			host:          regionHost,
 			path:          req.URL.Path,
@@ -216,8 +220,10 @@ func redirectFromUuid(region byte,
 
 		Log.LogInformation(fmt.Sprintf("Redirection to location: %s://%s%s", newLocation.scheme, newLocation.host, newLocation.path))
 		return newLocation, nil
+	} else {
+		Log.LogDebug(fmt.Sprintf("Same host. No redirection. RequestHost=%s RedirectHost=%s", req.Host, regionHost))
+		return nil, nil
 	}
-	return nil, nil
 }
 
 func handlePathRedirection(matchPath *matchPathRegex,
@@ -227,6 +233,7 @@ func handlePathRedirection(matchPath *matchPathRegex,
 	if len(subMatch) >= matchPath.index+1 {
 		rUuid, err := regional_uuid.Regional.Read(subMatch[matchPath.index+1], regionalRouter.isLittleEndian)
 		if err != nil {
+			Log.LogError(fmt.Sprintf("Fail to parse ExUuid %s", subMatch[matchPath.index+1]))
 			return nil, err
 		}
 		newLocation, err := redirectFromUuid(rUuid.Region, req, regionalRouter)
