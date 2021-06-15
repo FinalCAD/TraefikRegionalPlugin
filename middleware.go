@@ -84,6 +84,7 @@ type redirectionInfo struct {
 	host          string
 	path          string
 	routingMethod string
+	rawQuery      string
 }
 
 func New(_ context.Context, next http.Handler, config *Config, name string) (http.Handler, error) {
@@ -212,6 +213,7 @@ func redirectFromUuid(region byte,
 			path:          req.URL.Path,
 			scheme:        "http",
 			routingMethod: regionalRouter.routingMethod,
+			rawQuery: req.URL.RawQuery,
 		}
 
 		if req.TLS != nil {
@@ -314,8 +316,16 @@ func proxyHTTPRequest(rw http.ResponseWriter, req *http.Request, destination str
 	resp.Body.Close()
 }
 
+func (r *redirectionInfo) ToUrl() string {
+	url := r.scheme + "://" + r.host + r.path
+	if r.rawQuery != "" {
+		url += "?" + r.rawQuery
+	}
+	return url
+}
+
 func (r *redirectionInfo) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
-	destinationUrl := r.scheme + "://" + r.host + r.path
+	destinationUrl := r.ToUrl()
 	if r.routingMethod == RoutingMethodDirectCall {
 		proxyHTTPRequest(rw, req, destinationUrl)
 	} else {
