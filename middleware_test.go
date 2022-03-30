@@ -3,8 +3,10 @@ package TraefikRegionalPlugin_test
 import (
 	"context"
 	"github.com/finalcad/TraefikRegionalPlugin"
+	"github.com/finalcad/TraefikRegionalPlugin/regional_uuid"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"testing"
 )
 
@@ -136,6 +138,54 @@ func TestNoRedirectOnDefault(t *testing.T) {
 
 	assertResponseCode(t, recorder, http.StatusOK)
 	assertUrl(t, req, "api.massive-dynamic.com")
+}
+
+func TestRegexMatchWithVersion(t *testing.T) {
+	config := TraefikRegionalPlugin.MatchPathRegexConfig{
+		Regex: "^\\/api(\\/v([1-9]|[1-9][0-9])\\.[0-9]{1,2}){0,1}\\/projects\\/(([0-9A-Fa-f]{8}[-]){2}([0-9A-Fa-f]{4}[-]){3}[0-9A-Fa-f]{12})",
+		Index: 2,
+	}
+	url := "/api/v1.0/projects/dba64363-4a4267a8-0f84-40bd-80f8-67208c9d310a"
+	regex, err := regexp.Compile(config.Regex)
+	if err != nil {
+		t.Helper()
+		t.Errorf("Invalid regex")
+		return
+	}
+
+	subMatch := regex.FindStringSubmatch(url)
+	if len(subMatch) >= config.Index+1 {
+		_, err := regional_uuid.Regional.Read(subMatch[config.Index+1], true)
+		if err != nil {
+			t.Helper()
+			t.Errorf("Fail to parse ExUuid %s", subMatch[config.Index+1])
+			return
+		}
+	}
+}
+
+func TestRegexMatchWithoutVersion(t *testing.T) {
+	config := TraefikRegionalPlugin.MatchPathRegexConfig{
+		Regex: "^\\/api(\\/v([1-9]|[1-9][0-9])\\.[0-9]{1,2}){0,1}\\/projects\\/(([0-9A-Fa-f]{8}[-]){2}([0-9A-Fa-f]{4}[-]){3}[0-9A-Fa-f]{12})",
+		Index: 2,
+	}
+	url := "/api/projects/dba64363-4a4267a8-0f84-40bd-80f8-67208c9d310a"
+	regex, err := regexp.Compile(config.Regex)
+	if err != nil {
+		t.Helper()
+		t.Errorf("Invalid regex")
+		return
+	}
+
+	subMatch := regex.FindStringSubmatch(url)
+	if len(subMatch) >= config.Index+1 {
+		_, err := regional_uuid.Regional.Read(subMatch[config.Index+1], true)
+		if err != nil {
+			t.Helper()
+			t.Errorf("Fail to parse ExUuid %s", subMatch[config.Index+1])
+			return
+		}
+	}
 }
 
 func assertResponseCode(t *testing.T, recorder *httptest.ResponseRecorder, statusCode int) {
