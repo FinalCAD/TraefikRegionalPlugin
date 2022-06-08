@@ -213,7 +213,7 @@ func redirectFromUuid(region byte,
 			path:          req.URL.Path,
 			scheme:        "http",
 			routingMethod: regionalRouter.routingMethod,
-			rawQuery: req.URL.RawQuery,
+			rawQuery:      req.URL.RawQuery,
 		}
 
 		if req.TLS != nil {
@@ -287,10 +287,12 @@ func proxyHTTPRequest(rw http.ResponseWriter, req *http.Request, destination str
 		// TODO log into airbrake when airbrake is supported
 		return
 	}
+	Log.LogInformation(fmt.Sprintf("Incoming request: %s %s %s", req.Proto, req.Method, req.URL.String()))
 	reqClone := req.Clone(context.TODO())
 	reqClone.URL = parsedURL
 	reqClone.Host = parsedURL.Host
 	reqClone.RequestURI = ""
+	Log.LogInformation(fmt.Sprintf("Outcoming request:  %s %s %s", reqClone.Proto, reqClone.Method, reqClone.URL.String()))
 	httpClient := http.Client{}
 	resp, err := httpClient.Do(reqClone)
 	if err != nil {
@@ -317,11 +319,11 @@ func proxyHTTPRequest(rw http.ResponseWriter, req *http.Request, destination str
 }
 
 func (r *redirectionInfo) ToUrl() string {
-	url := r.scheme + "://" + r.host + r.path
+	urlString := r.scheme + "://" + r.host + r.path
 	if r.rawQuery != "" {
-		url += "?" + r.rawQuery
+		urlString += "?" + r.rawQuery
 	}
-	return url
+	return urlString
 }
 
 func (r *redirectionInfo) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
