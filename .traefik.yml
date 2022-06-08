@@ -1,7 +1,7 @@
 displayName: Regional Router for Finalcad App
 type: middleware
 
-import: github.com/finalcad/TraefikRegionalPlugin
+import: github.com/FinalCAD/TraefikRegionalPlugin
 
 summary: '[Regional Router] Regional Router for Finalcad App'
 

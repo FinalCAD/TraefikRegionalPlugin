@@ -2,8 +2,8 @@ package TraefikRegionalPlugin_test
 
 import (
 	"context"
-	"github.com/finalcad/TraefikRegionalPlugin"
-	"github.com/finalcad/TraefikRegionalPlugin/regional_uuid"
+	"github.com/FinalCAD/TraefikRegionalPlugin"
+	"github.com/FinalCAD/TraefikRegionalPlugin/regional_uuid"
 	"net/http"
 	"net/http/httptest"
 	"regexp"

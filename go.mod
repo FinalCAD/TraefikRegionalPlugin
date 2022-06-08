@@ -1,4 +1,4 @@
-module github.com/finalcad/TraefikRegionalPlugin
+module github.com/FinalCAD/TraefikRegionalPlugin
 
 go 1.15
 
