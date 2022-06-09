@@ -216,6 +216,10 @@ func redirectFromUuid(region byte,
 			rawQuery:      req.URL.RawQuery,
 		}
 
+		if regionalRouter.defaultScheme != "" {
+			newLocation.scheme = regionalRouter.defaultScheme
+		}
+
 		if req.TLS != nil {
 			newLocation.scheme = "https"
 		}
