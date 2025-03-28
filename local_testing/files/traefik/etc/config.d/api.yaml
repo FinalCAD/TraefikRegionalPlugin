@@ -1,0 +1,5 @@
+http:
+  routers:
+    dashboard:
+      rule: "Host(`traefik.127.0.0.1.nip.io`)"
+      service: "api@internal"
