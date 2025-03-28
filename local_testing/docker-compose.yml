@@ -1,24 +1,18 @@
-version: "3.3"
+name: traefik-regional-plugin
 
 services:
 
   traefik:
-    image: "traefik:v2.4"
-    container_name: "traefik_finalcad"
-    command:
-      - "--configFile=/config/static-config.yaml"
+    image: "traefik:v2.11"
     ports:
       - "80:80"
-      - "8080:8080"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
-      - "./static-config.yaml:/config/static-config.yaml"
-      - "./dynamics:/config/dyns/"
-      - "../.:/plugins/go/src/github.com/finalcad/TraefikRegionalPlugin/"
+      - "./files/traefik/etc:/etc/traefik"
+      - "..:/plugins-local/src/github.com/FinalCAD/TraefikRegionalPlugin"
 
   whoami-ja:
     image: "traefik/whoami"
-    container_name: "whoami-ja"
     ports:
       - "8001:80"
     labels:
@@ -27,7 +21,6 @@ services:
       - "WHOAMI_NAME=japan-router"
   whoami-na:
     image: "traefik/whoami"
-    container_name: "whoami-na"
     ports:
       - "8002:80"
     labels:
@@ -36,7 +29,6 @@ services:
       - "WHOAMI_NAME=north-america-router"
   whoami-default:
     image: "traefik/whoami"
-    container_name: "whoami-default"
     ports:
       - "8003:80"
     labels:

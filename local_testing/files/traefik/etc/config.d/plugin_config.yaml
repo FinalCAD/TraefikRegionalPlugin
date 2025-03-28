@@ -1,0 +1,27 @@
+http:
+
+  middlewares:
+    regional:
+      plugin:
+        TraefikRegionalPlugin:
+          GlobalHostUrls:
+            - "whoami-default.127.0.0.1.nip.io"
+          MatchPaths:
+            - regex: ^\/api\/projects\/(([0-9A-Fa-f]{8}[-]){2,}([0-9A-Fa-f]{4}[-]){3}[0-9A-Fa-f]{12})$
+              type: "PATH"
+              index: 0
+            - regex: ^\/project$
+              type: "JWT"
+              methods:
+                - "POST"
+          DestinationHosts:
+            - host: "whoami-ja.127.0.0.1.nip.io"
+              value: 1
+              isCurrent: false
+            - host: "whoami-na.127.0.0.1.nip.io"
+              value: 2
+              isCurrent: false
+          IsLittleEndian: true
+          DefaultScheme: http
+          # Log: Debug
+          RoutingMethod: Redirect

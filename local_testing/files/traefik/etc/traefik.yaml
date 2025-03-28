@@ -1,0 +1,31 @@
+log:
+  level: INFO
+accesslog: {}
+
+experimental:
+  localPlugins:
+    TraefikRegionalPlugin:
+      moduleName: github.com/FinalCAD/TraefikRegionalPlugin
+
+api:
+  insecure: true
+
+providers:
+
+  docker:
+    exposedByDefault: false
+    defaultRule: "Host(`{{ index .Labels \"traefik.hostname\" | default (index .Labels  \"com.docker.compose.service\") | default .Name | normalize }}.127.0.0.1.nip.io`)"
+
+  file:
+    directory: /etc/traefik/config.d
+    watch: true
+
+
+entrypoints:
+
+  web:
+    address: ":80"
+    http:
+      middlewares:
+      - regional@file
+
